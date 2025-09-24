@@ -10,15 +10,17 @@ read -s -p "Digite a senha do ROOT: " ROOTPASS
 echo
 read -p "Digite a partição ROOT Linux (ex: /dev/sda2): " ROOTPART
 read -p "Digite a partição SWAP Linux (ex: /dev/sda3): " SWAPPART
+read -p "Digite a partição HOME Linux (ex: /dev/sda4): " HOMEPART
 
 # Formatar ROOT e SWAP
 mkfs.btrfs -f $ROOTPART
 mkswap $SWAPPART
 swapon $SWAPPART
 
-# Montar ROOT
+# Montar ROOT e HOME
 mount $ROOTPART /mnt
 mkdir -p /mnt/home
+mount $HOMEPART /mnt/home
 
 # Instalar base Arch
 pacstrap /mnt base base-devel linux linux-firmware vim neovim git sudo networkmanager
