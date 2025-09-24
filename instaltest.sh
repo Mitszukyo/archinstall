@@ -1,80 +1,23 @@
 #!/bin/bash
-# ==========================================
-# Script Arch Linux para VM 32GB - Diogo
-# BSPWM + Hyprland, Neovim e dev tools leves
-# Execute no Live Arch conectado à internet
-# ==========================================
+# Script enxuto: BSPWM + Hyprland + apps básicos + usuário + login
+# Execute no chroot ou após montar ROOT/HOME
 
-set -e
-
-# -------------------------------
-# 1. Variáveis do usuário
-# -------------------------------
+# Pedir nomes e senhas
 read -p "Digite o nome do usuário: " USER
 read -s -p "Digite a senha do usuário: " PASS
 echo
 read -s -p "Digite a senha do ROOT: " ROOTPASS
 echo
 
-# -------------------------------
-# 2. Partições (ajustadas para VM)
-# -------------------------------
-# EFI 200MB / ROOT 20GB / SWAP 2GB / HOME 8GB
-EFI="/dev/sda1"
-ROOT="/dev/sda2"
-SWAP="/dev/sda3"
-HOME="/dev/sda4"
+# Atualizar pacman
+pacman -Syu --noconfirm
 
-# -------------------------------
-# 3. Formatar e montar
-# -------------------------------
-mkfs.fat -F32 $EFI
-mkfs.btrfs -f $ROOT
-mkswap $SWAP
-swapon $SWAP
+# Instalar base mínima
+pacman -S --noconfirm xorg xorg-xinit bspwm sxhkd polybar \
+    hyprland waybar swaybg wl-clipboard xdg-desktop-portal \
+    networkmanager firefox vim neovim git sudo gdm
 
-# Criar subvolumes Btrfs
-mount $ROOT /mnt
-btrfs subvolume create /mnt/@
-btrfs subvolume create /mnt/@home
-umount /mnt
-
-# Montar subvolumes
-mount -o compress=zstd,subvol=@ $ROOT /mnt
-mkdir -p /mnt/home
-mount -o compress=zstd,subvol=@home $ROOT /mnt/home
-mkdir -p /mnt/boot
-mount $EFI /mnt/boot
-
-# -------------------------------
-# 4. Instalar base Arch
-# -------------------------------
-pacstrap /mnt base base-devel linux linux-firmware vim neovim git sudo networkmanager
-
-# -------------------------------
-# 5. Fstab
-# -------------------------------
-genfstab -U /mnt >> /mnt/etc/fstab
-
-# -------------------------------
-# 6. Chroot e configuração
-# -------------------------------
-arch-chroot /mnt /bin/bash <<EOF
-
-# Timezone e locale
-ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
-hwclock --systohc
-echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen
-locale-gen
-echo "LANG=pt_BR.UTF-8" > /etc/locale.conf
-
-# Hostname
-echo "VM-Arch" > /etc/hostname
-echo "127.0.0.1 localhost" >> /etc/hosts
-echo "::1       localhost" >> /etc/hosts
-echo "127.0.1.1 VM-Arch.localdomain VM-Arch" >> /etc/hosts
-
-# Senhas
+# Configurar root
 echo "root:$ROOTPASS" | chpasswd
 
 # Criar usuário
@@ -82,43 +25,38 @@ useradd -m -G wheel -s /bin/bash $USER
 echo "$USER:$PASS" | chpasswd
 echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 
-# Bootloader
-pacman -S --noconfirm grub efibootmgr os-prober
-grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-os-prober
-grub-mkconfig -o /boot/grub/grub.cfg
+# Ativar NetworkManager e GDM
+systemctl enable NetworkManager
+systemctl enable gdm
 
-# Instalar BSPWM + Hyprland (minimal)
-pacman -S --noconfirm bspwm sxhkd polybar xorg xorg-xinit
-pacman -S --noconfirm hyprland waybar swaybg wl-clipboard xdg-desktop-portal
+# Criar diretórios de configuração BSPWM
+mkdir -p /home/$USER/.config/bspwm
+mkdir -p /home/$USER/.config/sxhkd
 
-# Instalar dev tools leves
-pacman -S --noconfirm python python-pip gcc make gdb sqlite postgresql nodejs npm openjdk
-
-# Neovim + terminal
-mkdir -p /home/$USER/.config/nvim/lua
-cat > /home/$USER/.config/nvim/lua/terminal.lua <<EOT
-require("toggleterm").setup{
-  size = 20,
-  open_mapping = [[<c-\\>]],
-  shade_filetypes = {},
-  shade_terminals = true,
-  shading_factor = 2,
-  start_in_insert = true,
-  persist_size = true,
-  direction = 'horizontal'
-}
-vim.api.nvim_set_keymap("n", "<Leader>t", ":ToggleTerm<CR>", {noremap = true, silent = true})
+# Arquivo de configuração BSPWM básico
+cat > /home/$USER/.config/bspwm/bspwmrc <<EOT
+#!/bin/sh
+bspc monitor -d I II III IV V
+bspc config border_width 2
+bspc config window_gap 10
+bspc config focus_follows_pointer true
+bspc config pointer_follows_monitor true
+bspc config split_ratio 0.5
+bspc config borderless_monocle true
+bspc config gapless_monocle true
 EOT
 
-chown -R $USER:$USER /home/$USER/.config/nvim
+# Arquivo de binds básicos
+cat > /home/$USER/.config/sxhkd/sxhkdrc <<EOT
+# Binds comuns
+super + {h,j,k,l}
+    bspc node -f {west,south,north,east}
+super + Return
+    alacritty
+super + w
+    firefox
+EOT
 
-# Multimídia leve e utilitários
-pacman -S --noconfirm firefox pulseaudio pavucontrol alsa-utils
+chown -R $USER:$USER /home/$USER/.config
 
-# Ativar NetworkManager
-systemctl enable NetworkManager
-
-EOF
-
-echo "Instalação concluída! Reinicie a VM."
+echo "Instalação concluída! Reinicie e selecione seu usuário no GDM."
