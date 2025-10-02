@@ -15,11 +15,16 @@ echo
 # ESCOLHA DAS PARTIÇÕES
 # -----------------------------
 lsblk
-echo "=== Atenção: identifique as partições do Linux ROOT, SWAP, HOME e EFI EXISTENTE ==="
+echo "=== Atenção: identifique as partições do Linux ROOT, SWAP e HOME ==="
 read -p "Digite a partição ROOT Linux (ex: /dev/nvme0n1p2): " ROOTPART
 read -p "Digite a partição SWAP Linux (ex: /dev/nvme0n1p3): " SWAPPART
 read -p "Digite a partição HOME Linux (ex: /dev/nvme0n1p4): " HOMEPART
-read -p "Digite a partição EFI EXISTENTE (ex: /dev/nvme0n1p1): " EFIPART
+
+# -----------------------------
+# DETECÇÃO AUTOMÁTICA DA EFI
+# -----------------------------
+EFIPART=$(blkid | grep -i "EFI" | cut -d: -f1)
+echo "Partição EFI detectada automaticamente: $EFIPART"
 
 echo "Você escolheu:"
 echo "ROOT: $ROOTPART"
@@ -75,7 +80,7 @@ mount $EFIPART /mnt/boot/efi
 # -----------------------------
 # BASE DO ARCH
 # -----------------------------
-pacstrap /mnt base base-devel linux linux-lts linux-firmware vim neovim git sudo networkmanager btrfs-progs snapper bash-completion zsh
+pacstrap /mnt base base-devel linux linux-lts linux-firmware vim neovim git sudo networkmanager btrfs-progs snapper bash-completion zsh docker
 
 # -----------------------------
 # FSTAB
@@ -126,6 +131,10 @@ systemctl enable snapper-cleanup.timer
 # NETWORK
 systemctl enable NetworkManager
 systemctl enable gdm
+
+# DOCKER
+systemctl enable docker
+usermod -aG docker $USER
 
 # HYPERLAND + DOTFILES END4
 pacman -S --noconfirm hyprland waybar swaybg wl-clipboard xdg-desktop-portal thunar
