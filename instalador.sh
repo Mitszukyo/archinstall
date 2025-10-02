@@ -120,6 +120,24 @@ git clone https://github.com/jacksaur/sleek-grub.git /boot/grub/themes/sleek
 sed -i 's/^GRUB_THEME=.*/GRUB_THEME="\/boot\/grub\/themes\/sleek\/theme.txt"/' /etc/default/grub
 grub-mkconfig -o /boot/grub/grub.cfg
 
+# -----------------------------
+# INSTALAR JETBRAINS STUDENT PACK
+# -----------------------------
+echo "[+] Instalando JetBrains Student Pack (IDEs compatíveis com Linux)"
+
+# Baixar o JetBrains Toolbox App
+curl -fsSL https://download.jetbrains.com/toolbox/jetbrains-toolbox.tar.gz -o /tmp/jetbrains-toolbox.tar.gz
+
+# Extrair o arquivo
+tar -xzf /tmp/jetbrains-toolbox.tar.gz -C /opt
+
+# Criar link simbólico
+ln -s /opt/jetbrains-toolbox*/jetbrains-toolbox /usr/local/bin/jetbrains-toolbox
+
+# Iniciar o Toolbox App
+echo "[+] Iniciando o JetBrains Toolbox App..."
+/opt/jetbrains-toolbox*/jetbrains-toolbox &
+
 # SNAPSHOTS AUTOMÁTICOS
 snapper -c root create-config /
 snapper -c home create-config /home
