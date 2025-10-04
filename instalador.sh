@@ -111,13 +111,20 @@ useradd -m -G wheel -s /bin/bash $USER
 echo "$USER:$PASS" | chpasswd
 echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
 
-# BOOTLOADER GRUB Sleek
+# BOOTLOADER GRUB + Tema CyberRe seguro
 pacman -S --noconfirm grub efibootmgr os-prober
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
 os-prober
 grub-mkconfig -o /boot/grub/grub.cfg
-git clone https://github.com/jacksaur/sleek-grub.git /boot/grub/themes/sleek
-sed -i 's/^GRUB_THEME=.*/GRUB_THEME="\/boot\/grub\/themes\/sleek\/theme.txt"/' /etc/default/grub
+
+# Instalar tema CyberRe fora da EFI (seguro para partições pequenas)
+mkdir -p /boot/grub/themes
+git clone https://github.com/ChrisTitusTech/GRUB-Themes.git /tmp/grub-themes
+cp -r /tmp/grub-themes/CyberRe /boot/grub/themes/
+
+# Aplicar o tema CyberRe
+sed -i 's|^#GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/CyberRe/theme.txt"|' /etc/default/grub
+sed -i 's|^GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/CyberRe/theme.txt"|' /etc/default/grub
 grub-mkconfig -o /boot/grub/grub.cfg
 
 # -----------------------------
