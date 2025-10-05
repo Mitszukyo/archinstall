@@ -25,6 +25,27 @@ sudo cp -r /tmp/grub-themes/CyberRe /boot/grub/themes/
 sudo sed -i 's|^#GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/CyberRe/theme.txt"|' /etc/default/grub
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 
+# === Ajustar GRUB para iniciar com o kernel Linux padrão ===
+echo "Configurando GRUB para iniciar com o kernel Linux padrão..."
+
+# Atualiza a lista de entradas do GRUB
+sudo grub-mkconfig -o /boot/grub/grub.cfg
+
+# Identifica o índice do kernel 'Linux' (não LTS)
+index=$(grep -i "Arch Linux, with Linux " /boot/grub/grub.cfg | grep -n "" | grep -v "lts" | head -n 1 | cut -d: -f1)
+
+if [ -n "$index" ]; then
+    # Subtrai 1 porque o GRUB começa do 0
+    entry_number=$((index - 1))
+    sudo sed -i "s/^GRUB_DEFAULT=.*/GRUB_DEFAULT=${entry_number}/" /etc/default/grub
+    echo "GRUB configurado para inicializar com o kernel Linux (entrada $entry_number)."
+else
+    echo "Não foi possível encontrar a entrada do kernel Linux padrão. Nenhuma alteração feita."
+fi
+
+# Regera o GRUB com a nova configuração
+sudo grub-mkconfig -o /boot/grub/grub.cfg
+
 # -----------------------------
 # JETBRAINS STUDENT PACK
 # -----------------------------
