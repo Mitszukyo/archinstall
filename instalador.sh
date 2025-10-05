@@ -1,173 +1,74 @@
 #!/bin/bash
-# Script seguro ThinkPad T14 Arch Linux atualizado (2025-10-01) com autocomplete no terminal
-# Execute no live Arch conectado à internet
+# Script de instalação limpa para Arch Linux (Hyprland + apps + JetBrains + Docker + Snapper)
+
+set -euo pipefail
+USER_NAME="$USER"  # Usuário atual
+
+echo "[+] Atualizando pacotes..."
+sudo pacman -Syu --noconfirm
 
 # -----------------------------
-# VARIÁVEIS DE USUÁRIO
+# BOOTLOADER GRUB + Tema CyberRe
 # -----------------------------
-read -p "Digite o nome do usuário: " USER
-read -s -p "Digite a senha do usuário: " PASS
-echo
-read -s -p "Digite a senha do ROOT: " ROOTPASS
-echo
+echo "[+] Instalando GRUB e dependências..."
+sudo pacman -S --noconfirm grub efibootmgr os-prober
 
-# -----------------------------
-# ESCOLHA DAS PARTIÇÕES
-# -----------------------------
-lsblk
-echo "=== Atenção: identifique as partições do Linux ROOT, SWAP e HOME ==="
-read -p "Digite a partição ROOT Linux (ex: /dev/nvme0n1p2): " ROOTPART
-read -p "Digite a partição SWAP Linux (ex: /dev/nvme0n1p3): " SWAPPART
-read -p "Digite a partição HOME Linux (ex: /dev/nvme0n1p4): " HOMEPART
+echo "[+] Instalando GRUB no EFI..."
+sudo grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+sudo os-prober
+sudo grub-mkconfig -o /boot/grub/grub.cfg
 
-# -----------------------------
-# DETECÇÃO AUTOMÁTICA DA EFI
-# -----------------------------
-EFIPART=$(blkid | grep -i "EFI" | cut -d: -f1)
-echo "Partição EFI detectada automaticamente: $EFIPART"
-
-echo "Você escolheu:"
-echo "ROOT: $ROOTPART"
-echo "SWAP: $SWAPPART"
-echo "HOME: $HOMEPART"
-echo "EFI : $EFIPART"
-read -p "Está correto? (s/n): " CONFIRM
-if [[ "$CONFIRM" != "s" ]]; then
-    echo "Saindo. Revise as partições e rode o script novamente."
-    exit 1
-fi
-
-# -----------------------------
-# FORMATAÇÃO COM VERIFICAÇÃO
-# -----------------------------
-echo "[+] Formatando ROOT e SWAP"
-read -p "Confirma formatar ROOT ($ROOTPART)? TODOS OS DADOS SERÃO PERDIDOS (s/n): " ROOTCONF
-if [[ "$ROOTCONF" == "s" ]]; then
-    mkfs.btrfs -f $ROOTPART
-else
-    echo "Abortado."
-    exit 1
-fi
-
-read -p "Confirma formatar SWAP ($SWAPPART)? (s/n): " SWAPCONF
-if [[ "$SWAPCONF" == "s" ]]; then
-    mkswap $SWAPPART
-    swapon $SWAPPART
-else
-    echo "Abortado."
-    exit 1
-fi
-
-read -p "Confirma formatar HOME ($HOMEPART)? TODOS OS DADOS SERÃO PERDIDOS (s/n): " HOMECONF
-if [[ "$HOMECONF" == "s" ]]; then
-    mkfs.btrfs -f $HOMEPART
-else
-    echo "Abortado."
-    exit 1
-fi
-
-# ⚠️ NÃO FORMATAMOS A PARTIÇÃO EFI (vem do Windows)
-
-# -----------------------------
-# MONTAGEM
-# -----------------------------
-mount $ROOTPART /mnt
-mkdir -p /mnt/home
-mount $HOMEPART /mnt/home
-mkdir -p /mnt/boot/efi
-mount $EFIPART /mnt/boot/efi
-
-# -----------------------------
-# BASE DO ARCH
-# -----------------------------
-pacstrap /mnt base base-devel linux linux-lts linux-firmware vim neovim git sudo networkmanager btrfs-progs snapper bash-completion zsh docker
-
-# -----------------------------
-# FSTAB
-# -----------------------------
-genfstab -U /mnt >> /mnt/etc/fstab
-
-# -----------------------------
-# CHROOT
-# -----------------------------
-arch-chroot /mnt /bin/bash <<EOF
-
-# LOCALE, HOSTNAME
-ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
-hwclock --systohc
-echo "pt_BR.UTF-8 UTF-8" >> /etc/locale.gen
-locale-gen
-echo "LANG=pt_BR.UTF-8" > /etc/locale.conf
-echo "ThinkPad" > /etc/hostname
-echo "127.0.0.1 localhost" >> /etc/hosts
-echo "::1       localhost" >> /etc/hosts
-echo "127.0.1.1 ThinkPad.localdomain ThinkPad" >> /etc/hosts
-
-# SENHAS
-echo "root:$ROOTPASS" | chpasswd
-
-# CRIAR USUÁRIO
-useradd -m -G wheel -s /bin/bash $USER
-echo "$USER:$PASS" | chpasswd
-echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
-
-# BOOTLOADER GRUB + Tema CyberRe seguro
-pacman -S --noconfirm grub efibootmgr os-prober
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-os-prober
-grub-mkconfig -o /boot/grub/grub.cfg
-
-# Instalar tema CyberRe fora da EFI (seguro para partições pequenas)
-mkdir -p /boot/grub/themes
+echo "[+] Instalando tema CyberRe..."
+sudo mkdir -p /boot/grub/themes
 git clone https://github.com/ChrisTitusTech/GRUB-Themes.git /tmp/grub-themes
-cp -r /tmp/grub-themes/CyberRe /boot/grub/themes/
-
-# Aplicar o tema CyberRe
-sed -i 's|^#GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/CyberRe/theme.txt"|' /etc/default/grub
-sed -i 's|^GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/CyberRe/theme.txt"|' /etc/default/grub
-grub-mkconfig -o /boot/grub/grub.cfg
+sudo cp -r /tmp/grub-themes/CyberRe /boot/grub/themes/
+sudo sed -i 's|^#GRUB_THEME=.*|GRUB_THEME="/boot/grub/themes/CyberRe/theme.txt"|' /etc/default/grub
+sudo grub-mkconfig -o /boot/grub/grub.cfg
 
 # -----------------------------
-# INSTALAR JETBRAINS STUDENT PACK
+# JETBRAINS STUDENT PACK
 # -----------------------------
-echo "[+] Instalando JetBrains Student Pack (IDEs compatíveis com Linux)"
-
-# Baixar o JetBrains Toolbox App
+echo "[+] Instalando JetBrains Toolbox..."
 curl -fsSL https://download.jetbrains.com/toolbox/jetbrains-toolbox.tar.gz -o /tmp/jetbrains-toolbox.tar.gz
-
-# Extrair o arquivo
-tar -xzf /tmp/jetbrains-toolbox.tar.gz -C /opt
-
-# Criar link simbólico
-ln -s /opt/jetbrains-toolbox*/jetbrains-toolbox /usr/local/bin/jetbrains-toolbox
-
-# Iniciar o Toolbox App
-echo "[+] Iniciando o JetBrains Toolbox App..."
+sudo tar -xzf /tmp/jetbrains-toolbox.tar.gz -C /opt
+sudo ln -sf /opt/jetbrains-toolbox*/jetbrains-toolbox /usr/local/bin/jetbrains-toolbox
 /opt/jetbrains-toolbox*/jetbrains-toolbox &
 
-# SNAPSHOTS AUTOMÁTICOS
-snapper -c root create-config /
-snapper -c home create-config /home
-sed -i "s/ALLOW_USERS=\"\"/ALLOW_USERS=\"$USER\"/" /etc/snapper/configs/root
-sed -i "s/ALLOW_USERS=\"\"/ALLOW_USERS=\"$USER\"/" /etc/snapper/configs/home
-systemctl enable snapper-timeline.timer
-systemctl enable snapper-cleanup.timer
+# -----------------------------
+# SNAPSHOTS AUTOMÁTICOS (Snapper)
+# -----------------------------
+echo "[+] Configurando Snapper..."
+sudo snapper -c root create-config /
+sudo snapper -c home create-config /home
+sudo sed -i "s/ALLOW_USERS=\"\"/ALLOW_USERS=\"$USER_NAME\"/" /etc/snapper/configs/root
+sudo sed -i "s/ALLOW_USERS=\"\"/ALLOW_USERS=\"$USER_NAME\"/" /etc/snapper/configs/home
+sudo systemctl enable snapper-timeline.timer
+sudo systemctl enable snapper-cleanup.timer
 
-# NETWORK
-systemctl enable NetworkManager
-systemctl enable gdm
+# -----------------------------
+# NETWORK + DISPLAY MANAGER
+# -----------------------------
+sudo systemctl enable NetworkManager
+sudo systemctl enable gdm
 
+# -----------------------------
 # DOCKER
-systemctl enable docker
-usermod -aG docker $USER
+# -----------------------------
+sudo pacman -S --noconfirm docker
+sudo systemctl enable docker
+sudo usermod -aG docker "$USER_NAME"
 
-# HYPERLAND + DOTFILES END4
-pacman -S --noconfirm hyprland waybar swaybg wl-clipboard xdg-desktop-portal thunar
-git clone https://github.com/end-4/dots-hyprland.git /home/$USER/.config/hyprland
-chown -R $USER:$USER /home/$USER/.config/hyprland
+# -----------------------------
+# HYPRLAND + DOTFILES END4
+# -----------------------------
+echo "[+] Instalando Hyprland e utilitários..."
+sudo pacman -S --noconfirm hyprland waybar swaybg wl-clipboard xdg-desktop-portal thunar kitty
 
-# ATALHOS HYPRLAND (END4) PREDEFINIDOS
-cat > /home/$USER/.config/hyprland/hyprland.conf <<EOT
+git clone https://github.com/end-4/dots-hyprland.git /home/$USER_NAME/.config/hyprland
+sudo chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.config/hyprland
+
+# Atalhos Hyprland
+cat > /home/$USER_NAME/.config/hyprland/hyprland.conf <<EOT
 # Mod = Win (Super)
 bind = Mod+Enter, exec, kitty
 bind = Mod+Q, close
@@ -204,32 +105,31 @@ bind = Mod+Shift+0, move_to_workspace 10
 bind = Mod+Tab, next_window
 bind = Mod+R, reload
 bind = Mod+Ctrl+Q, restart
-bind = Mod+*, exec, /home/$USER/.config/hyprland/theme_selector.sh
+bind = Mod+*, exec, /home/$USER_NAME/.config/hyprland/theme_selector.sh
 EOT
-chown -R $USER:$USER /home/$USER/.config/hyprland/hyprland.conf
+sudo chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.config/hyprland/hyprland.conf
 
-# TERMINAL KITTY COM AUTOCOMPLETE
-pacman -S --noconfirm kitty
-mkdir -p /home/$USER/.config/kitty
-cat > /home/$USER/.config/kitty/kitty.conf <<EOT
+# -----------------------------
+# TERMINAL KITTY
+# -----------------------------
+mkdir -p /home/$USER_NAME/.config/kitty
+cat > /home/$USER_NAME/.config/kitty/kitty.conf <<EOT
 background_opacity 0.85
 include /usr/share/kitty/themes/Catppuccin.conf
 shell zsh
 EOT
-chown -R $USER:$USER /home/$USER/.config/kitty
+sudo chown -R $USER_NAME:$USER_NAME /home/$USER_NAME/.config/kitty
 
-# NEOVIM (pronto para Java e COBOL)
-pacman -S --noconfirm jdk-openjdk maven gradle python python-pip nodejs npm gcc make gdb sqlite postgresql
-sudo -u $USER git clone https://github.com/LazyVim/starter.git /home/$USER/.config/nvim
-sudo -u $USER nvim --headless +Lazy! +qall
+# -----------------------------
+# NEOVIM + DEV TOOLS
+# -----------------------------
+sudo pacman -S --noconfirm jdk-openjdk maven gradle python python-pip nodejs npm gcc make gdb sqlite postgresql
+sudo -u $USER_NAME git clone https://github.com/LazyVim/starter.git /home/$USER_NAME/.config/nvim
+sudo -u $USER_NAME nvim --headless +Lazy! +qall
 
+# -----------------------------
 # MULTIMÍDIA E UTILITÁRIOS
-pacman -S --noconfirm firefox spotify discord pulseaudio pavucontrol alsa-utils feh
+# -----------------------------
+sudo pacman -S --noconfirm firefox spotify discord pulseaudio pavucontrol alsa-utils feh
 
-# GDM (Tela de login)
-pacman -S --noconfirm gdm
-systemctl enable gdm
-
-EOF
-
-echo "[+] Instalação concluída com segurança! Reinicie o computador."
+echo "[+] Instalação concluída! Reinicie o computador."
